@@ -3,11 +3,13 @@ package org.example.mst.graph;
 import java.util.*;
 
 public class Graph {
+    private final int id;
     private final List<String> nodes;
     private final List<Edge> edges;
-    private final Map<String, List<Edge>> adj;
+    private final Map<String, List<Edge>> adj; // undirected
 
-    public Graph(List<String> nodes, List<Edge> edges) {
+    public Graph(int id, List<String> nodes, List<Edge> edges) {
+        this.id = id;
         this.nodes = List.copyOf(nodes);
         this.edges = List.copyOf(edges);
         this.adj = new HashMap<>();
@@ -18,6 +20,7 @@ public class Graph {
         }
     }
 
+    public int getId() { return id; }
     public List<String> getNodes() { return nodes; }
     public List<Edge> getEdges() { return edges; }
     public Map<String, List<Edge>> getAdj() { return adj; }
