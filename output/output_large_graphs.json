@@ -1,0 +1,36 @@
+{
+  "results": [
+    {
+      "graph_id": 20,
+      "input_stats": { "vertices": 15, "edges": 20 },
+      "prim": {
+        "mst_edges": [{"from":"v1","to":"v2","weight":2},{"from":"v2","to":"v3","weight":3},{"from":"v3","to":"v4","weight":4},{"from":"v1","to":"v10","weight":5},{"from":"v10","to":"v9","weight":3},{"from":"v4","to":"v5","weight":5},{"from":"v5","to":"v12","weight":3},{"from":"v12","to":"v11","weight":2},{"from":"v12","to":"v13","weight":4},{"from":"v13","to":"v14","weight":1},{"from":"v14","to":"v15","weight":2},{"from":"v14","to":"v7","weight":4},{"from":"v5","to":"v6","weight":6},{"from":"v3","to":"v8","weight":7}],
+        "total_cost": 51,
+        "operations_count": 34,
+        "execution_time_ms": 0.0
+      },
+      "kruskal": {
+        "mst_edges": [{"from":"v13","to":"v14","weight":1},{"from":"v1","to":"v2","weight":2},{"from":"v11","to":"v12","weight":2},{"from":"v14","to":"v15","weight":2},{"from":"v2","to":"v3","weight":3},{"from":"v9","to":"v10","weight":3},{"from":"v5","to":"v12","weight":3},{"from":"v3","to":"v4","weight":4},{"from":"v12","to":"v13","weight":4},{"from":"v7","to":"v14","weight":4},{"from":"v4","to":"v5","weight":5},{"from":"v1","to":"v10","weight":5},{"from":"v5","to":"v6","weight":6},{"from":"v3","to":"v8","weight":7}],
+        "total_cost": 51,
+        "operations_count": 36,
+        "execution_time_ms": 0.0
+      }
+    },
+    {
+      "graph_id": 21,
+      "input_stats": { "vertices": 18, "edges": 22 },
+      "prim": {
+        "mst_edges": [{"from":"n1","to":"n2","weight":1},{"from":"n2","to":"n3","weight":2},{"from":"n3","to":"n4","weight":3},{"from":"n1","to":"n9","weight":4},{"from":"n4","to":"n5","weight":4},{"from":"n5","to":"n6","weight":5},{"from":"n6","to":"n14","weight":3},{"from":"n6","to":"n7","weight":6},{"from":"n3","to":"n12","weight":6},{"from":"n2","to":"n18","weight":7},{"from":"n7","to":"n8","weight":7},{"from":"n8","to":"n16","weight":5},{"from":"n9","to":"n10","weight":9},{"from":"n10","to":"n11","weight":10},{"from":"n12","to":"n13","weight":12},{"from":"n14","to":"n15","weight":14},{"from":"n16","to":"n17","weight":16}],
+        "total_cost": 114,
+        "operations_count": 41,
+        "execution_time_ms": 0.0
+      },
+      "kruskal": {
+        "mst_edges": [{"from":"n1","to":"n2","weight":1},{"from":"n2","to":"n3","weight":2},{"from":"n3","to":"n4","weight":3},{"from":"n6","to":"n14","weight":3},{"from":"n4","to":"n5","weight":4},{"from":"n1","to":"n9","weight":4},{"from":"n5","to":"n6","weight":5},{"from":"n8","to":"n16","weight":5},{"from":"n6","to":"n7","weight":6},{"from":"n3","to":"n12","weight":6},{"from":"n7","to":"n8","weight":7},{"from":"n2","to":"n18","weight":7},{"from":"n9","to":"n10","weight":9},{"from":"n10","to":"n11","weight":10},{"from":"n12","to":"n13","weight":12},{"from":"n14","to":"n15","weight":14},{"from":"n16","to":"n17","weight":16}],
+        "total_cost": 114,
+        "operations_count": 42,
+        "execution_time_ms": 0.0
+      }
+    }
+  ]
+}
