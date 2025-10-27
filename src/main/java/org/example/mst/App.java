@@ -4,127 +4,241 @@ import org.example.mst.algorithms.Kruskal;
 import org.example.mst.algorithms.Prim;
 import org.example.mst.graph.Edge;
 import org.example.mst.graph.Graph;
-import org.fasterxml.jackson.annotation.JsonCreator;
-import org.fasterxml.jackson.annotation.JsonProperty;
-import org.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.File;
-import java.io.FileWriter;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class App {
 
-    /* ===== Input DTO ===== */
-    public static class InputEdge {
-        public final String from, to; public final int weight;
-        @JsonCreator public InputEdge(@JsonProperty("from") String from,
-                                      @JsonProperty("to") String to,
-                                      @JsonProperty("weight") int weight) {
-            this.from = from; this.to = to; this.weight = weight;
-        }
+    // ===== DTO =====
+    private static class InputEdge {
+        String from, to; int weight;
+        InputEdge(String f, String t, int w){ from=f; to=t; weight=w; }
     }
-    public static class InputGraph {
-        public final int id; public final List<String> nodes; public final List<InputEdge> edges;
-        @JsonCreator public InputGraph(@JsonProperty("id") int id,
-                                       @JsonProperty("nodes") List<String> nodes,
-                                       @JsonProperty("edges") List<InputEdge> edges) {
-            this.id = id; this.nodes = nodes; this.edges = edges;
-        }
-    }
-    public static class InputRoot {
-        public final List<InputGraph> graphs;
-        @JsonCreator public InputRoot(@JsonProperty("graphs") List<InputGraph> graphs) {
-            this.graphs = graphs;
+    private static class InputGraph {
+        int id; List<String> nodes; List<InputEdge> edges;
+        InputGraph(int id, List<String> nodes, List<InputEdge> edges){
+            this.id=id; this.nodes=nodes; this.edges=edges;
         }
     }
 
-    /* ===== Output DTO ===== */
-    public static class Stats { public int vertices; public int edges; }
-    public static class AlgoOut {
-        public List<Edge> mst_edges; public int total_cost; public long operations_count; public double execution_time_ms;
+    // ======= SIMPLE JSON PARSER FOR OUR FIXED SCHEMA (no libs) =======
+    // Expecting: { "graphs": [ { "id":N, "nodes":[...], "edges":[ {...}, {...} ] }, ... ] }
+    private static String readTextFile(String path) throws IOException {
+        return Files.readString(new File(path).toPath(), StandardCharsets.UTF_8);
     }
-    public static class Item {
-        public int graph_id; public Stats input_stats; public AlgoOut prim; public AlgoOut kruskal;
-    }
-    public static class Out { public List<Item> results = new ArrayList<>(); }
 
-    /* ===== Helpers ===== */
-    private static InputRoot read(ObjectMapper om, File f) throws Exception {
-        if (!f.exists() || Files.size(f.toPath())==0) return new InputRoot(List.of());
-        return om.readValue(f, InputRoot.class);
+    private static List<InputGraph> parseGraphsFromJson(String json) {
+        // Make tolerant to whitespace and newlines
+        // 1) Extract content of "graphs": [ ... ]
+        Pattern pGraphs = Pattern.compile("\"graphs\"\\s*:\\s*\\[(.*)\\]\\s*\\}?\\s*$",
+                Pattern.DOTALL);
+        Matcher mGraphs = pGraphs.matcher(json);
+        if (!mGraphs.find()) return List.of();
+
+        String graphsBlock = mGraphs.group(1);
+
+        // 2) Split into top-level {...} graph objects (balanced braces)
+        List<String> graphObjs = splitTopLevelObjects(graphsBlock);
+
+        List<InputGraph> result = new ArrayList<>();
+        for (String gobj : graphObjs) {
+            int id = extractId(gobj);
+            List<String> nodes = extractNodes(gobj);
+            List<InputEdge> edges = extractEdges(gobj);
+            result.add(new InputGraph(id, nodes, edges));
+        }
+        return result;
     }
-    private static Graph toGraph(InputGraph ig) {
+
+    // Split a comma-separated sequence of {...} objects at top level
+    private static List<String> splitTopLevelObjects(String s) {
+        List<String> parts = new ArrayList<>();
+        int brace=0, start=-1;
+        for (int i=0;i<s.length();i++){
+            char c = s.charAt(i);
+            if (c=='{'){
+                if (brace==0) start=i;
+                brace++;
+            } else if (c=='}'){
+                brace--;
+                if (brace==0 && start!=-1){
+                    parts.add(s.substring(start, i+1));
+                    start=-1;
+                }
+            }
+        }
+        return parts;
+    }
+
+    private static int extractId(String gobj) {
+        Matcher m = Pattern.compile("\"id\"\\s*:\\s*(\\d+)").matcher(gobj);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
+    }
+
+    private static List<String> extractNodes(String gobj) {
+        Matcher m = Pattern.compile("\"nodes\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL).matcher(gobj);
+        if (!m.find()) return List.of();
+        String block = m.group(1);
+        Matcher sm = Pattern.compile("\"([^\"]*)\"").matcher(block);
+        List<String> nodes = new ArrayList<>();
+        while (sm.find()) nodes.add(sm.group(1));
+        return nodes;
+    }
+
+    private static List<InputEdge> extractEdges(String gobj) {
+        Matcher m = Pattern.compile("\"edges\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL).matcher(gobj);
+        if (!m.find()) return List.of();
+        String block = m.group(1);
+
+        // match objects like {"from":"A","to":"B","weight":4}
+        Matcher em = Pattern.compile(
+                "\\{[^{}]*\"from\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"to\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"weight\"\\s*:\\s*(-?\\d+)\\s*\\}"
+        ).matcher(block);
+
+        List<InputEdge> edges = new ArrayList<>();
+        while (em.find()){
+            edges.add(new InputEdge(em.group(1), em.group(2), Integer.parseInt(em.group(3))));
+        }
+        return edges;
+    }
+
+    // ======= RUN ONE FILE =======
+    private static List<InputGraph> readInputFile(String path) throws IOException {
+        File f = new File(path);
+        if (!f.exists() || Files.size(f.toPath())==0) return List.of();
+        String json = readTextFile(path);
+        return parseGraphsFromJson(json);
+    }
+
+    private static Graph toGraph(InputGraph ig){
         List<Edge> es = new ArrayList<>();
         for (InputEdge e : ig.edges) es.add(new Edge(e.from, e.to, e.weight));
         return new Graph(ig.id, ig.nodes, es);
     }
 
-    private static Out runFile(ObjectMapper om, String inPath) throws Exception {
-        InputRoot root = read(om, new File(inPath));
-        Out out = new Out();
-        for (InputGraph ig : root.graphs) {
-            Graph g = toGraph(ig);
-            Kruskal.Result kr = Kruskal.run(g);
-            Prim.Result    pr = Prim.run(g, null);
+    private static String jsonEscape(String s){
+        return s.replace("\\","\\\\").replace("\"","\\\"");
+    }
 
-            Item item = new Item();
-            item.graph_id = g.getId();
-            item.input_stats = new Stats();
-            item.input_stats.vertices = g.V();
-            item.input_stats.edges    = g.E();
+    private static void writeOutJson(String path, List<Map<String,Object>> items) throws IOException {
+        File out = new File(path);
+        out.getParentFile().mkdirs();
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\n  \"results\": [\n");
+        for (int i=0;i<items.size();i++){
+            Map<String,Object> it = items.get(i);
+            @SuppressWarnings("unchecked")
+            List<Edge> primEdges = (List<Edge>)((Map<String,Object>)it.get("prim")).get("mst_edges");
+            @SuppressWarnings("unchecked")
+            List<Edge> krEdges   = (List<Edge>)((Map<String,Object>)it.get("kruskal")).get("mst_edges");
 
-            item.prim = new AlgoOut();
-            item.prim.mst_edges = pr.mstEdges;
-            item.prim.total_cost = pr.totalCost;
-            item.prim.operations_count = pr.operations;
-            item.prim.execution_time_ms = pr.timeMillis;
+            sb.append("    {\n");
+            sb.append("      \"graph_id\": ").append(it.get("graph_id")).append(",\n");
+            sb.append("      \"input_stats\": { \"vertices\": ").append(it.get("V"))
+                    .append(", \"edges\": ").append(it.get("E")).append(" },\n");
 
-            item.kruskal = new AlgoOut();
-            item.kruskal.mst_edges = kr.mstEdges;
-            item.kruskal.total_cost = kr.totalCost;
-            item.kruskal.operations_count = kr.operations;
-            item.kruskal.execution_time_ms = kr.timeMillis;
+            // Prim block
+            sb.append("      \"prim\": {\n");
+            sb.append("        \"mst_edges\": ").append(edgesToJsonArray(primEdges)).append(",\n");
+            sb.append("        \"total_cost\": ").append(((Map<?,?>)it.get("prim")).get("total_cost")).append(",\n");
+            sb.append("        \"operations_count\": ").append(((Map<?,?>)it.get("prim")).get("ops")).append(",\n");
+            sb.append("        \"execution_time_ms\": ").append(((Map<?,?>)it.get("prim")).get("ms")).append("\n");
+            sb.append("      },\n");
 
-            out.results.add(item);
+            // Kruskal block
+            sb.append("      \"kruskal\": {\n");
+            sb.append("        \"mst_edges\": ").append(edgesToJsonArray(krEdges)).append(",\n");
+            sb.append("        \"total_cost\": ").append(((Map<?,?>)it.get("kruskal")).get("total_cost")).append(",\n");
+            sb.append("        \"operations_count\": ").append(((Map<?,?>)it.get("kruskal")).get("ops")).append(",\n");
+            sb.append("        \"execution_time_ms\": ").append(((Map<?,?>)it.get("kruskal")).get("ms")).append("\n");
+            sb.append("      }\n");
+
+            sb.append("    }");
+            if (i < items.size()-1) sb.append(",");
+            sb.append("\n");
         }
-        return out;
+        sb.append("  ]\n}\n");
+        Files.writeString(out.toPath(), sb.toString(), StandardCharsets.UTF_8);
     }
 
-    private static void writeJson(ObjectMapper om, Out out, String outPath) throws Exception {
-        File f = new File(outPath);
-        f.getParentFile().mkdirs();
-        om.writerWithDefaultPrettyPrinter().writeValue(f, out);
+    private static String edgesToJsonArray(List<Edge> edges){
+        StringBuilder s = new StringBuilder("[");
+        for (int i=0;i<edges.size();i++){
+            Edge e = edges.get(i);
+            s.append("{\"from\":\"").append(jsonEscape(e.from))
+                    .append("\",\"to\":\"").append(jsonEscape(e.to))
+                    .append("\",\"weight\":").append(e.weight).append("}");
+            if (i<edges.size()-1) s.append(",");
+        }
+        s.append("]");
+        return s.toString();
     }
 
-    private static void appendSummaryCSV(Out out, String sizeLabel, String csvPath) throws Exception {
+    private static void appendSummaryCsv(String csvPath, String sizeLabel, List<Map<String,Object>> items) throws IOException {
         File f = new File(csvPath);
-        boolean writeHeader = !f.exists() || f.length() == 0;
+        boolean header = !f.exists() || f.length()==0;
         try (FileWriter fw = new FileWriter(f, true)) {
-            if (writeHeader) {
-                fw.write("size,graph_id,V,E,total_cost,prim_ms,prim_ops,kruskal_ms,kruskal_ops\n");
-            }
-            for (Item it : out.results) {
-                fw.write(String.format("%s,%d,%d,%d,%d,%.3f,%d,%.3f,%d\n",
+            if (header) fw.write("size,graph_id,V,E,total_cost,prim_ms,prim_ops,kruskal_ms,kruskal_ops\n");
+            for (Map<String,Object> it : items){
+                Map<String,Object> prim = cast(it.get("prim"));
+                Map<String,Object> kr   = cast(it.get("kruskal"));
+                fw.write(String.format(
+                        "%s,%d,%d,%d,%d,%.3f,%d,%.3f,%d%n",
                         sizeLabel,
-                        it.graph_id,
-                        it.input_stats.vertices,
-                        it.input_stats.edges,
-                        it.prim.total_cost,              // cost одинаковый
-                        it.prim.execution_time_ms,
-                        it.prim.operations_count,
-                        it.kruskal.execution_time_ms,
-                        it.kruskal.operations_count
+                        (int) it.get("graph_id"),
+                        (int) it.get("V"),
+                        (int) it.get("E"),
+                        (int) prim.get("total_cost"),
+                        (double) prim.get("ms"),
+                        (long) prim.get("ops"),
+                        (double) kr.get("ms"),
+                        (long) kr.get("ops")
                 ));
             }
         }
     }
+    @SuppressWarnings("unchecked")
+    private static Map<String,Object> cast(Object o){ return (Map<String,Object>) o; }
+
+    // ======= PIPELINE =======
+    private static List<Map<String,Object>> runOne(String inputPath) throws Exception {
+        List<InputGraph> in = readInputFile(inputPath);
+        List<Map<String,Object>> items = new ArrayList<>();
+
+        for (InputGraph ig : in) {
+            Graph g = toGraph(ig);
+            Kruskal.Result kr = Kruskal.run(g);
+            Prim.Result    pr = Prim.run(g, null);
+
+            Map<String,Object> prim = new HashMap<>();
+            prim.put("mst_edges", pr.mstEdges);
+            prim.put("total_cost", pr.totalCost);
+            prim.put("ops", pr.operations);
+            prim.put("ms", (double) pr.timeMillis);
+
+            Map<String,Object> kruskal = new HashMap<>();
+            kruskal.put("mst_edges", kr.mstEdges);
+            kruskal.put("total_cost", kr.totalCost);
+            kruskal.put("ops", kr.operations);
+            kruskal.put("ms", (double) kr.timeMillis);
+
+            Map<String,Object> item = new HashMap<>();
+            item.put("graph_id", ig.id);
+            item.put("V", g.V());
+            item.put("E", g.E());
+            item.put("prim", prim);
+            item.put("kruskal", kruskal);
+            items.add(item);
+        }
+        return items;
+    }
 
     public static void main(String[] args) throws Exception {
-        ObjectMapper om = new ObjectMapper();
-
-        // Пути как на твоём скрине
         String inSmall  = "input/small_graphs.json";
         String inMedium = "input/medium_graphs.json";
         String inLarge  = "input/large_graphs.json";
@@ -134,17 +248,17 @@ public class App {
         String outLarge  = "output/output_large_graphs.json";
         String summary   = "output/summary.csv";
 
-        Out small  = runFile(om, inSmall);
-        Out medium = runFile(om, inMedium);
-        Out large  = runFile(om, inLarge);
+        List<Map<String,Object>> small  = runOne(inSmall);
+        List<Map<String,Object>> medium = runOne(inMedium);
+        List<Map<String,Object>> large  = runOne(inLarge);
 
-        writeJson(om, small,  outSmall);
-        writeJson(om, medium, outMedium);
-        writeJson(om, large,  outLarge);
+        writeOutJson(outSmall,  small);
+        writeOutJson(outMedium, medium);
+        writeOutJson(outLarge,  large);
 
-        appendSummaryCSV(small,  "small",  summary);
-        appendSummaryCSV(medium, "medium", summary);
-        appendSummaryCSV(large,  "large",  summary);
+        appendSummaryCsv(summary, "small",  small);
+        appendSummaryCsv(summary, "medium", medium);
+        appendSummaryCsv(summary, "large",  large);
 
         System.out.println("Wrote:");
         System.out.println("  " + outSmall);

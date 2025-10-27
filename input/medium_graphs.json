@@ -1,0 +1,37 @@
+{
+  "graphs": [
+    {
+      "id": 10,
+      "nodes": ["A","B","C","D","E","F","G","H"],
+      "edges": [
+        {"from":"A","to":"B","weight":3}, {"from":"A","to":"C","weight":5},
+        {"from":"B","to":"C","weight":1}, {"from":"B","to":"D","weight":4},
+        {"from":"C","to":"D","weight":6}, {"from":"C","to":"E","weight":7},
+        {"from":"D","to":"E","weight":2}, {"from":"D","to":"F","weight":8},
+        {"from":"E","to":"G","weight":9}, {"from":"F","to":"G","weight":3},
+        {"from":"G","to":"H","weight":2}, {"from":"E","to":"H","weight":4}
+      ]
+    },
+    {
+      "id": 11,
+      "nodes": ["v1","v2","v3","v4","v5","v6","v7","v8","v9","v10"],
+      "edges": [
+        {"from":"v1","to":"v2","weight":5}, {"from":"v2","to":"v3","weight":4},
+        {"from":"v3","to":"v4","weight":3}, {"from":"v4","to":"v5","weight":6},
+        {"from":"v5","to":"v6","weight":2}, {"from":"v6","to":"v7","weight":7},
+        {"from":"v7","to":"v8","weight":1}, {"from":"v8","to":"v9","weight":9},
+        {"from":"v9","to":"v10","weight":8}, {"from":"v1","to":"v10","weight":10},
+        {"from":"v2","to":"v9","weight":5}, {"from":"v3","to":"v7","weight":4}
+      ]
+    },
+    {
+      "id": 12,
+      "nodes": ["a","b","c","d","e","f"],
+      "edges": [
+        {"from":"a","to":"b","weight":1}, {"from":"b","to":"c","weight":1},
+        {"from":"c","to":"d","weight":1}
+        /* e,f — изолированные вершины */
+      ]
+    }
+  ]
+}
